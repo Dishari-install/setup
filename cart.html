@@ -346,6 +346,68 @@ background:#edf1f7;
 margin:14px 0;
 }
 
+.coupon-box{
+margin-top:16px;
+padding:14px;
+border-radius:18px;
+background:linear-gradient(180deg,#ffffff,#f3f8ff);
+border:1px solid #d6e7ff;
+box-shadow:0 8px 18px rgba(24,119,242,0.08);
+}
+
+.coupon-title{
+font-size:14px;
+font-weight:900;
+color:#071d33;
+margin-bottom:10px;
+display:flex;
+align-items:center;
+gap:8px;
+}
+
+.coupon-row{
+display:grid;
+grid-template-columns:1fr auto;
+gap:8px;
+}
+
+.coupon-row input{
+height:48px;
+border:1px solid #d9e5f7;
+border-radius:15px;
+padding:0 14px;
+outline:none;
+font-size:14px;
+font-weight:900;
+color:#071d33;
+text-transform:uppercase;
+background:white;
+}
+
+.coupon-row button{
+height:48px;
+border:none;
+border-radius:15px;
+padding:0 18px;
+background:linear-gradient(135deg,#1877F2,#0f6be8);
+color:white;
+font-size:14px;
+font-weight:900;
+cursor:pointer;
+}
+
+.coupon-note{
+margin-top:9px;
+font-size:12px;
+font-weight:800;
+line-height:18px;
+color:#607086;
+}
+
+.coupon-note.applied{
+color:#16a34a;
+}
+
 .total-line{
 display:flex;
 justify-content:space-between;
@@ -891,6 +953,7 @@ const SELLER_WHATSAPP = "919836697502";
 const UPI_QR_URL = "https://tinyurl.com/dishari-pay";
 let cartNavTapCount = 0;
 let cartNavTapTimer = null;
+let appliedCoupon = null;
 
 let user = localStorage.getItem("user");
 if(!user){
@@ -989,6 +1052,12 @@ return sessionId;
 }
 
 function getDishariUserPhone(){
+let savedPhone = String(localStorage.getItem("dishariUserPhone") || "").replace(/\D/g,"");
+
+if(savedPhone){
+return savedPhone;
+}
+
 try{
 let address = JSON.parse(localStorage.getItem("dishariDeliveryAddress")) || {};
 return String(address.phone || "").replace(/\D/g,"");
@@ -1270,16 +1339,83 @@ totalMrp += price * quantity;
 subtotal += finalPrice * quantity;
 });
 
-let discount = Math.max(totalMrp - subtotal, 0);
+let productDiscount = Math.max(totalMrp - subtotal, 0);
+let couponDiscount = 0;
+
+if(appliedCoupon && appliedCoupon.percent){
+couponDiscount = Math.round((subtotal * appliedCoupon.percent) / 100);
+}
+
+let discount = productDiscount + couponDiscount;
 let shipping = 0;
-let orderTotal = subtotal + shipping;
+let orderTotal = Math.max(subtotal - couponDiscount, 0) + shipping;
 
 return {
 totalMrp:totalMrp,
+productDiscount:productDiscount,
+couponDiscount:couponDiscount,
 discount:discount,
 shipping:shipping,
 orderTotal:orderTotal
 };
+}
+
+function couponUrl(code){
+let params = new URLSearchParams({
+type:"validateCoupon",
+code:code,
+username:localStorage.getItem("user") || "",
+phone:getDishariUserPhone(),
+_:Date.now()
+});
+
+return ORDER_API + "?" + params.toString();
+}
+
+function applyCoupon(){
+let input = document.getElementById("couponInput");
+let note = document.getElementById("couponNote");
+
+if(!input){
+return;
+}
+
+let code = input.value.trim().toUpperCase();
+
+if(!code){
+showCartToast("Enter coupon code");
+return;
+}
+
+if(note){
+note.innerText = "Checking coupon...";
+note.className = "coupon-note";
+}
+
+fetch(couponUrl(code))
+.then(function(res){
+return res.json();
+})
+.then(function(result){
+if(!(result && result.success)){
+appliedCoupon = null;
+showCartToast(result && result.message ? result.message : "Invalid coupon");
+renderCart();
+return;
+}
+
+appliedCoupon = {
+code:result.couponCode || code,
+percent:Number(result.couponPercent) || 0,
+expiry:result.couponExpiry || ""
+};
+
+showCartToast("Coupon applied");
+renderCart();
+})
+.catch(function(){
+showCartToast("Coupon server error");
+});
 }
 
 function getSavedAddress(){
@@ -1435,6 +1571,7 @@ ${productHTML}
 <h3>Order Summary</h3>
 <div class="review-line"><span>Total MRP</span><strong>${money(totals.totalMrp)}</strong></div>
 <div class="review-line"><span>Discount</span><strong style="color:#16a34a;">-${money(totals.discount)}</strong></div>
+${appliedCoupon ? `<div class="review-line"><span>Coupon ${appliedCoupon.code}</span><strong style="color:#16a34a;">-${money(totals.couponDiscount)}</strong></div>` : ""}
 <div class="review-line"><span>Shipping</span><strong>Free</strong></div>
 <div class="divider"></div>
 <div class="review-line"><span>Order Total</span><strong style="color:#1877F2;font-size:18px;">${money(totals.orderTotal)}</strong></div>
@@ -1518,6 +1655,12 @@ lines.push("Price: " + money(cleanPrice(item.finalPrice || item.price) * (Number
 
 lines.push("");
 lines.push("Shipping: Free");
+
+if(order.couponCode){
+lines.push("Coupon: " + order.couponCode);
+lines.push("Coupon Discount: " + money(order.couponDiscount || 0));
+}
+
 lines.push("");
 lines.push("Total Order Value: " + money(order.orderTotal));
 lines.push("");
@@ -1552,7 +1695,11 @@ totalMrp:money(order.totalMrp),
 discount:money(order.discount),
 shipping:"Free",
 orderTotal:money(order.orderTotal),
-status:"Order Processing"
+status:"Order Processing",
+couponCode:order.couponCode || "",
+couponDiscount:order.couponDiscount ? money(order.couponDiscount) : "",
+couponUsername:localStorage.getItem("user") || "",
+couponPhone:getDishariUserPhone()
 };
 
 await fetch(ORDER_API, {
@@ -1569,6 +1716,10 @@ function removeSelectedItemsFromCart(){
 let cart = normalizeCart();
 let remaining = cart.filter(item => item.selected === false);
 localStorage.setItem("cart", JSON.stringify(remaining));
+
+if(!remaining.length){
+appliedCoupon = null;
+}
 }
 
 function openWhatsApp(order){
@@ -1605,6 +1756,8 @@ customer:address,
 items:items,
 totalMrp:totals.totalMrp,
 discount:totals.discount,
+couponCode:appliedCoupon ? appliedCoupon.code : "",
+couponDiscount:totals.couponDiscount,
 shipping:0,
 orderTotal:totals.orderTotal,
 status:"Order Processing"
@@ -1709,9 +1862,20 @@ ${imageBlock(item)}
 
 cartHTML += `</div>`;
 
-let discount = Math.max(totalMrp - subtotal, 0);
-let shipping = 0;
-let orderTotal = subtotal + shipping;
+let selectedItems = cart.filter(item => item.selected !== false);
+let totals = calculateTotals(selectedItems);
+let discount = totals.discount;
+let shipping = totals.shipping;
+let orderTotal = totals.orderTotal;
+let couponHTML = appliedCoupon ? `
+<div class="price-line">
+<span>Coupon ${appliedCoupon.code}</span>
+<strong class="discount">-${money(totals.couponDiscount)}</strong>
+</div>
+` : "";
+let couponNote = appliedCoupon
+? `Coupon applied: ${appliedCoupon.percent}% extra discount${appliedCoupon.expiry ? " valid till " + appliedCoupon.expiry : ""}`
+: "Use your welcome offer coupon here.";
 
 cartHTML += `
 <div class="shipping-card">
@@ -1737,6 +1901,8 @@ cartHTML += `
 <strong class="discount">-${money(discount)}</strong>
 </div>
 
+${couponHTML}
+
 <div class="price-line">
 <span>Shipping</span>
 <strong>Free</strong>
@@ -1747,6 +1913,15 @@ cartHTML += `
 <div class="total-line">
 <span>Order Total</span>
 <span>${money(orderTotal)}</span>
+</div>
+
+<div class="coupon-box">
+<div class="coupon-title"><i class="fa-solid fa-ticket"></i>Welcome Coupon</div>
+<div class="coupon-row">
+<input type="text" id="couponInput" placeholder="Enter coupon code" value="${appliedCoupon ? appliedCoupon.code : ""}">
+<button onclick="applyCoupon()">Apply</button>
+</div>
+<div class="coupon-note ${appliedCoupon ? "applied" : ""}" id="couponNote">${couponNote}</div>
 </div>
 </div>
 
