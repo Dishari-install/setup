@@ -546,6 +546,52 @@ gap:8px;
 flex-shrink:0;
 }
 
+.welcome-actions{
+display:grid;
+grid-template-columns:1fr 1fr;
+gap:8px;
+margin-top:12px;
+}
+
+.welcome-btn{
+min-height:42px;
+border:none;
+border-radius:14px;
+font-size:13px;
+font-weight:900;
+cursor:pointer;
+display:flex;
+align-items:center;
+justify-content:center;
+gap:7px;
+}
+
+.welcome-btn.normal{
+background:#f3f8ff;
+color:#1877F2;
+border:1px solid #d6e7ff;
+}
+
+.welcome-btn.offer{
+background:linear-gradient(135deg,#1877F2,#0f6be8);
+color:white;
+box-shadow:0 8px 18px rgba(24,119,242,0.20);
+}
+
+.coupon-chip{
+display:inline-flex;
+align-items:center;
+gap:6px;
+margin-top:10px;
+padding:7px 10px;
+border-radius:999px;
+background:#eef6ff;
+color:#1877F2;
+font-size:12px;
+font-weight:900;
+border:1px solid #d6e7ff;
+}
+
 .icon-btn{
 width:40px;
 height:40px;
@@ -1527,6 +1573,11 @@ rawPhone:normalize(user.phone),
 dateTime:normalize(user.dateTime),
 date:date,
 displayDate:formatDateTime(date,user.dateTime),
+couponCode:normalize(user.couponCode || user["Coupon Code"]),
+couponPercent:normalize(user.couponPercent || user["Coupon Percent"]),
+couponExpiry:normalize(user.couponExpiry || user["Coupon Expiry"]),
+couponUsed:normalize(user.couponUsed || user["Coupon Used"] || "No"),
+welcomeSent:normalize(user.welcomeSent || user["Welcome Sent"] || "No"),
 duplicate:phone && phoneCount[phone] > 1,
 index:index
 };
@@ -1855,6 +1906,7 @@ let safeName = escapeHTML(user.username || "Unknown User");
 let phone = user.phone || user.rawPhone || "";
 let displayPhone = escapeHTML(phone || "No phone");
 let whatsappText = encodeURIComponent("Hi " + (user.username || "there") + ", welcome to Dishari. Thank you for joining us.");
+let couponText = user.couponCode ? `${escapeHTML(user.couponCode)}${user.couponUsed.toLowerCase() === "yes" ? " | Used" : ""}` : "Coupon loading";
 
 html += `
 <div class="user-card ${user.duplicate ? "duplicate" : ""}">
@@ -1872,6 +1924,11 @@ ${user.duplicate ? '<div class="duplicate-badge">Duplicate phone</div>' : ''}
 <a class="icon-btn wa-btn" href="https://wa.me/91${phone}?text=${whatsappText}" target="_blank" rel="noopener" title="WhatsApp"><i class="fa-brands fa-whatsapp"></i></a>
 <button class="icon-btn copy-btn" onclick="copyPhone('${phone}')" title="Copy"><i class="fa-regular fa-copy"></i></button>
 </div>
+</div>
+<div class="coupon-chip"><i class="fa-solid fa-ticket"></i>${couponText}</div>
+<div class="welcome-actions">
+<button class="welcome-btn normal" onclick="sendNormalWelcome(${user.index})"><i class="fa-brands fa-whatsapp"></i>Normal Welcome</button>
+<button class="welcome-btn offer" onclick="openOfferWelcome(${user.index})"><i class="fa-solid fa-gift"></i>Offer Welcome</button>
 </div>
 </div>
 `;
@@ -2142,6 +2199,158 @@ window.open("https://wa.me/" + phone + "?text=" + whatsappText, "_blank");
 markStockRequestInformed(request).then(function(){
 showToast("Marked informed");
 });
+}
+
+function getUserByIndex(index){
+return allUsers.find(function(user){
+return Number(user.index) === Number(index);
+});
+}
+
+function buildWhatsAppPhone(phone){
+phone = String(phone || "").replace(/\D/g,"");
+
+if(phone.length === 10){
+phone = "91" + phone;
+}
+
+return phone;
+}
+
+function sendNormalWelcome(index){
+let user = getUserByIndex(index);
+
+if(!user){
+showToast("User not found");
+return;
+}
+
+let phone = buildWhatsAppPhone(user.phone || user.rawPhone);
+
+if(!phone){
+showToast("No phone number");
+return;
+}
+
+let text = encodeURIComponent(
+"Hi " + (user.username || "there") + ",\n" +
+"Welcome to Dishari.\n\n" +
+"Thank you for joining us.\n\n" +
+"Dishari"
+);
+
+window.open("https://wa.me/" + phone + "?text=" + text, "_blank");
+}
+
+function getOfferExpiryDate(){
+let date = new Date();
+date.setHours(date.getHours() + 48);
+return date;
+}
+
+function formatOfferExpiry(date){
+return date.toLocaleString("en-IN", {
+day:"2-digit",
+month:"2-digit",
+year:"numeric",
+hour:"2-digit",
+minute:"2-digit",
+hour12:true
+});
+}
+
+function openOfferWelcome(index){
+let user = getUserByIndex(index);
+
+if(!user){
+showToast("User not found");
+return;
+}
+
+let existing = document.getElementById("offerWelcomeModal");
+
+if(existing){
+existing.remove();
+}
+
+let modal = document.createElement("div");
+modal.id = "offerWelcomeModal";
+modal.style.cssText = "position:fixed;inset:0;z-index:99998;background:rgba(7,29,51,.38);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:18px;";
+modal.innerHTML = `
+<div style="width:100%;max-width:390px;background:white;border-radius:28px;padding:24px 20px;text-align:center;box-shadow:0 22px 52px rgba(7,29,51,.24);border:1px solid #d6e7ff;">
+<div style="width:74px;height:74px;border-radius:50%;background:linear-gradient(135deg,#1877F2,#0f6be8);color:white;display:flex;align-items:center;justify-content:center;font-size:30px;margin:0 auto 16px;box-shadow:0 12px 26px rgba(24,119,242,.28);"><i class="fa-solid fa-gift"></i></div>
+<div style="font-size:24px;line-height:30px;font-weight:900;color:#071d33;">Choose offer</div>
+<div style="margin-top:8px;font-size:14px;line-height:21px;font-weight:800;color:#607086;">Offer valid for 48 hours after sending.</div>
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-top:18px;">
+${[5,10,15,20].map(function(percent){
+return `<button onclick="sendOfferWelcome(${index},${percent})" style="height:48px;border:none;border-radius:15px;background:${percent === 10 ? "linear-gradient(135deg,#1877F2,#0f6be8)" : "#f3f8ff"};color:${percent === 10 ? "white" : "#1877F2"};font-size:15px;font-weight:900;">${percent}%</button>`;
+}).join("")}
+</div>
+<button onclick="document.getElementById('offerWelcomeModal').remove()" style="margin-top:14px;width:100%;height:48px;border:1px solid #d6e7ff;border-radius:15px;background:white;color:#1877F2;font-size:15px;font-weight:900;">Back</button>
+</div>
+`;
+document.body.appendChild(modal);
+}
+
+function sendOfferWelcome(index,percent){
+let user = getUserByIndex(index);
+
+if(!user){
+showToast("User not found");
+return;
+}
+
+let phone = buildWhatsAppPhone(user.phone || user.rawPhone);
+
+if(!phone){
+showToast("No phone number");
+return;
+}
+
+let expiry = getOfferExpiryDate();
+let expiryText = formatOfferExpiry(expiry);
+let code = user.couponCode || "";
+
+if(!code){
+showToast("Coupon loading. Refresh users.");
+return;
+}
+
+fetch(SCRIPT_API,{
+method:"POST",
+mode:"no-cors",
+headers:{"Content-Type":"text/plain;charset=utf-8"},
+body:JSON.stringify({
+type:"updateWelcomeOffer",
+adminToken:getAdminToken(),
+deviceId:getAdminDeviceId(),
+username:user.username || "",
+phone:user.phone || "",
+couponPercent:percent
+})
+}).catch(function(){});
+
+user.couponPercent = String(percent);
+user.couponExpiry = expiryText;
+user.welcomeSent = "Yes";
+
+let modal = document.getElementById("offerWelcomeModal");
+if(modal){
+modal.remove();
+}
+
+let text = encodeURIComponent(
+"Hi " + (user.username || "there") + ",\n" +
+"Welcome to Dishari.\n\n" +
+"Use coupon code " + code + " and get extra " + percent + "% discount on any product.\n\n" +
+"Valid till: " + expiryText + "\n\n" +
+"Thank you\n" +
+"Dishari"
+);
+
+window.open("https://wa.me/" + phone + "?text=" + text, "_blank");
+showToast("Offer welcome ready");
+applyFilters();
 }
 
 function enrichEvents(rows){
