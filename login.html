@@ -1183,6 +1183,7 @@ return sameName(u,username) && samePhone(u,phone);
 
 if(exactMatch){
 localStorage.setItem("user",username);
+localStorage.setItem("dishariUserPhone",phone);
 window.location.replace("home.html");
 return;
 }
@@ -1242,6 +1243,7 @@ return sameName(u,username) && samePhone(u,phone);
 
 if(exactMatch){
 localStorage.setItem("user",username);
+localStorage.setItem("dishariUserPhone",phone);
 window.location.replace("home.html");
 return;
 }
@@ -1274,6 +1276,7 @@ dateTime:makeDateTime()
 .then(function(){
 showToast("Sign up success");
 localStorage.setItem("user",username);
+localStorage.setItem("dishariUserPhone",phone);
 
 setTimeout(function(){
 window.location.replace("home.html");
