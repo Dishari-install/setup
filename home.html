@@ -1262,6 +1262,7 @@ transition:width 0.35s ease;
 <script>
 const PRODUCT_API = "https://script.google.com/macros/s/AKfycbxsMa2lo42bcs36DvEyR-_EFM24tYnB8OuBvlRU94Y7jNcz0cxbcvbX7ripAeFwsVApug/exec";
 const CACHE_KEY = "dishariProductsCacheV1";
+const SELLER_WHATSAPP = "919836697502";
 
 let allProducts = [];
 let visibleProducts = [];
@@ -1630,6 +1631,12 @@ return sessionId;
 }
 
 function getDishariUserPhone(){
+let loginPhone = String(localStorage.getItem("dishariUserPhone") || "").replace(/\D/g,"");
+
+if(loginPhone){
+return loginPhone;
+}
+
 try{
 let address = JSON.parse(localStorage.getItem("dishariDeliveryAddress")) || {};
 return String(address.phone || "").replace(/\D/g,"");
@@ -1637,6 +1644,52 @@ return String(address.phone || "").replace(/\D/g,"");
 catch(error){
 return "";
 }
+}
+
+function getStockRequestId(product){
+return "SR" + Date.now() + "_" + String(product["Product ID"] || "").replace(/\W/g,"");
+}
+
+function saveStockRequest(product){
+return fetch(PRODUCT_API,{
+method:"POST",
+mode:"no-cors",
+headers:{"Content-Type":"text/plain;charset=utf-8"},
+body:JSON.stringify({
+type:"stockRequest",
+requestId:getStockRequestId(product),
+dateTime:new Date().toISOString(),
+username:localStorage.getItem("user") || "",
+phone:getDishariUserPhone(),
+productId:product["Product ID"] || "",
+productName:product["Product Name"] || "",
+status:"Waiting"
+})
+}).catch(function(){});
+}
+
+function openAvailabilityWhatsApp(product){
+let username = localStorage.getItem("user") || "Customer";
+let message =
+"Hi Dishari,\n" +
+"I am " + username + " interested in this product.\n\n" +
+"Product Name: " + (product["Product Name"] || "") + "\n" +
+"Product ID: " + (product["Product ID"] || "") + "\n\n" +
+"Please inform me when it is available again.";
+
+window.location.href = "https://wa.me/" + SELLER_WHATSAPP + "?text=" + encodeURIComponent(message);
+}
+
+function requestProductAvailability(product){
+if(!product){
+return;
+}
+
+saveStockRequest(product);
+showHomeCartToast("Opening WhatsApp");
+setTimeout(function(){
+openAvailabilityWhatsApp(product);
+},250);
 }
 
 function trackUserEvent(action,product){
@@ -1925,8 +1978,7 @@ return;
 data.forEach((product,index)=>{
 let imageUrl = normalizeImageUrl(product["Image Url"] || "");
 let inStock = isProductInStock(product);
-let cartButtonText = inStock ? "Add To Cart" : "Out Of Stock";
-let cartButtonDisabled = inStock ? "" : "disabled";
+let cartButtonText = inStock ? "Add To Cart" : "Check Availability";
 html += `
 <div class="product-card" onclick="openPopupByIndex(${index})">
 ${String(product["Category"] || "").trim().toLowerCase() === "new arrivals" ? '<div class="new-badge">NEW</div>' : ''}
@@ -1942,7 +1994,7 @@ alt="${product["Product Name"] || "Dishari product"}"
 <div class="product-name">${product["Product Name"] || ""}</div>
 <div class="product-price">₹ ${product["Price"] || ""}</div>
 <div class="product-desc">${product["Description1"] || ""}</div>
-<button class="cart-btn" ${cartButtonDisabled} onclick="event.stopPropagation();openPopupByIndex(${index})">${cartButtonText}</button>
+<button class="cart-btn" onclick="event.stopPropagation();openPopupByIndex(${index})">${cartButtonText}</button>
 </div>
 `;
 });
@@ -2172,6 +2224,7 @@ return;
 }
 
 if(!isProductInStock(currentProduct)){
+requestProductAvailability(currentProduct);
 return;
 }
 
@@ -2250,18 +2303,169 @@ openSellerUsers();
 }
 });
 
-const reviewTemplates = [
-"Premium quality and elegant finish",
-"Loved the fabric and comfort",
-"Beautiful design and classy look",
-"Perfect for daily and festive wear",
-"Stylish and comfortable fitting",
-"Packaging and quality both amazing",
-"Colour and material look premium",
-"Worth buying for every occasion",
-"Comfortable fabric with elegant style",
-"Looks even better in real"
-];
+const reviewLinesByCategory = {
+"saree":[
+"Soft drape feels graceful and easy",
+"Border work gives a premium look",
+"Perfect choice for festive styling",
+"Colour looks rich in real view",
+"Fabric feels light and elegant",
+"Traditional look feels very classy",
+"Good pick for family occasions",
+"Design looks neat and beautiful"
+],
+"kurti":[
+"Soft fabric feels comfortable daily",
+"Fitting looks neat and easy",
+"Print gives a fresh stylish look",
+"Good choice for everyday ethnic wear",
+"Comfort and style feel balanced",
+"Colour looks smart for daily use",
+"Stitching finish feels clean",
+"Easy to style with leggings"
+],
+"tops":[
+"Comfortable fit for casual outings",
+"Colour looks fresh and modern",
+"Easy to pair with jeans",
+"Fabric feels light for daily wear",
+"Simple style looks very smart",
+"Good pick for regular fashion",
+"Design feels trendy and clean",
+"Comfort level feels really nice"
+],
+"palazzo":[
+"Soft fabric gives easy movement",
+"Comfortable fit for daily styling",
+"Pairs well with kurti and tops",
+"Relaxed design feels practical",
+"Good comfort for long wear",
+"Modern look feels simple and smart",
+"Fabric fall looks neat",
+"Easy choice for everyday use"
+],
+"salwar":[
+"Ethnic look feels elegant and neat",
+"Comfortable choice for daily wear",
+"Design feels graceful for occasions",
+"Fabric finish looks clean",
+"Traditional style looks very smart",
+"Good pick for family functions",
+"Colour combination feels classy",
+"Comfort and elegance work well"
+],
+"gown":[
+"Party look feels graceful and premium",
+"Design gives a beautiful festive feel",
+"Perfect choice for special moments",
+"Flow and finish look elegant",
+"Colour looks rich for celebrations",
+"Style feels classy and confident",
+"Good pick for evening wear",
+"Overall look feels very polished"
+],
+"nighty":[
+"Soft fabric feels relaxed for night",
+"Comfortable choice for daily rest",
+"Lightweight feel is very practical",
+"Easy fit makes it comfortable",
+"Good choice for home comfort",
+"Fabric feels soft on skin",
+"Simple design feels useful",
+"Comfort level looks very nice"
+],
+"western":[
+"Modern look feels stylish and clean",
+"Good choice for casual outings",
+"Comfortable fit for everyday fashion",
+"Design feels smart and confident",
+"Easy to style for daily wear",
+"Fresh look feels very trendy",
+"Fabric and finish look neat",
+"Overall style feels premium"
+],
+"kids":[
+"Soft fabric feels comfortable for kids",
+"Cute design looks bright and happy",
+"Easy wear choice for daily use",
+"Comfortable fit for playful movement",
+"Good pick for small occasions",
+"Colour looks fresh and cheerful",
+"Fabric feels gentle and light",
+"Design feels practical for kids"
+],
+"bedsheet":[
+"Fabric feels soft for daily use",
+"Print gives bedroom a fresh look",
+"Colour looks bright and clean",
+"Finish feels practical for home",
+"Good choice for regular bedding",
+"Soft feel looks comfortable",
+"Design adds a fresh room style",
+"Material looks useful for daily rest"
+],
+"trendz":[
+"Fresh style feels modern and smart",
+"Good pick for daily fashion",
+"Design looks clean and premium",
+"Colour and finish feel stylish",
+"Comfort and look feel balanced",
+"Easy choice for regular use",
+"Overall quality looks very nice",
+"Style feels simple and practical"
+]
+};
+
+function getReviewCategory(product){
+let category = String(product["Product Type"] || product["Category"] || "").trim().toLowerCase();
+return reviewLinesByCategory[category] ? category : "trendz";
+}
+
+function getReviewPrice(product){
+let priceText = String(product["Price"] || "0").replace(/[^\d.]/g,"");
+return Number(priceText) || 0;
+}
+
+function getDynamicReviews(product){
+let category = getReviewCategory(product);
+let reviews = [...reviewLinesByCategory[category]];
+let price = getReviewPrice(product);
+let todayOffer = Number(product["Today Offer"]) || 0;
+
+if(price && price < 300){
+reviews.push("Good quality feels strong at this price");
+}
+else if(price >= 900){
+reviews.push("Premium finish feels worth the price");
+}
+
+if(todayOffer > 0){
+reviews.push("Offer price makes it a smart buy");
+}
+
+let productName = String(product["Product Name"] || "").trim();
+if(productName){
+let simpleName = productName.split(/\s+/).slice(-2).join(" ").toLowerCase();
+reviews.push("This " + simpleName + " looks useful and stylish");
+}
+
+let seed = hashText((product["Product ID"] || "") + productName + category);
+let sorted = reviews
+.map(function(review,index){
+return {
+review:review,
+score:seededRandom(seed + index + 1)
+};
+})
+.sort(function(a,b){
+return a.score - b.score;
+})
+.map(function(item){
+return item.review;
+});
+
+return sorted.slice(0,3);
+}
 
 function getProductPriceForViewer(product){
 let priceText = String(product["Price"] || "0").replace(/[^\d.]/g,"");
@@ -2575,8 +2779,8 @@ el.classList.add("active");
 
 function openPopup(product){
 let reviewHTML = "";
-let shuffledReviews = [...reviewTemplates].sort(() => 0.5 - Math.random()).slice(0,3);
-shuffledReviews.forEach(review=>{
+let dynamicReviews = getDynamicReviews(product);
+dynamicReviews.forEach(review=>{
 reviewHTML += `<div class="review">&#10004; ${review}</div>`;
 
 });
@@ -2657,8 +2861,8 @@ document.getElementById("popupStock").innerHTML = `<div class="popup-stock out-s
 
 let popupCartButton = document.querySelector("#popup .add-btn");
 if(popupCartButton){
-popupCartButton.disabled = !isInStock;
-popupCartButton.innerText = isInStock ? "Add To Cart" : "Out Of Stock";
+popupCartButton.disabled = false;
+popupCartButton.innerText = isInStock ? "Add To Cart" : "Check Availability";
 }
 
 let sizeValue = (product["Size"] || "Free Size").trim();
