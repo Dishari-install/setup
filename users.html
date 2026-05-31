@@ -1308,6 +1308,7 @@ if(result && result.success && result.token){
 sessionStorage.setItem("dishariUsersUnlocked","yes");
 sessionStorage.setItem("dishariAdminToken",result.token);
 document.getElementById("pinOverlay").style.display = "none";
+applyPendingAdminFocus();
 loadUsers();
 loadStockRequests();
 loadAdminLogs();
@@ -1329,12 +1330,33 @@ showToast("Login server error");
 function guardPage(){
 if(sessionStorage.getItem("dishariUsersUnlocked") === "yes" && getAdminToken()){
 document.getElementById("pinOverlay").style.display = "none";
+applyPendingAdminFocus();
 loadUsers();
 loadStockRequests();
 loadAdminLogs();
 loadUserEvents();
 startAutoExit();
 }
+}
+
+function applyPendingAdminFocus(){
+let pendingTab = sessionStorage.getItem("dishariUsersOpenTab");
+let pendingProduct = sessionStorage.getItem("dishariStockRequestProductId");
+
+if(pendingTab === "requests"){
+switchAdminTab("requests");
+}
+
+if(pendingProduct){
+let input = document.getElementById("requestSearchInput");
+
+if(input){
+input.value = pendingProduct;
+}
+}
+
+sessionStorage.removeItem("dishariUsersOpenTab");
+sessionStorage.removeItem("dishariStockRequestProductId");
 }
 
 function startAutoExit(){
@@ -2034,15 +2056,92 @@ html += `
 <div class="card-meta">${escapeHTML(item.phone || "No phone")}</div>
 </div>
 <div class="action-row">
-<a class="icon-btn wa-btn" href="https://wa.me/91${item.phone}?text=${whatsappText}" target="_blank" rel="noopener" title="WhatsApp"><i class="fa-brands fa-whatsapp"></i></a>
+<button class="icon-btn wa-btn" onclick="notifyStockRequestByIndex(${item.index})" title="WhatsApp"><i class="fa-brands fa-whatsapp"></i></button>
 <button class="icon-btn copy-btn" onclick="copyPhone('${item.phone}')" title="Copy"><i class="fa-regular fa-copy"></i></button>
 </div>
 </div>
+${statusClass === "waiting" ? `<div class="request-actions"><button class="small-action secondary" onclick="markStockRequestInformedByIndex(${item.index})"><i class="fa-solid fa-check"></i>Mark Informed</button></div>` : ""}
 </div>
 `;
 });
 
 list.innerHTML = html;
+}
+
+function getStockRequestByIndex(index){
+return allRequests.find(function(item){
+return Number(item.index) === Number(index);
+});
+}
+
+function markStockRequestInformed(request){
+if(!request){
+return Promise.resolve(false);
+}
+
+return fetch(SCRIPT_API,{
+method:"POST",
+mode:"no-cors",
+headers:{"Content-Type":"text/plain;charset=utf-8"},
+body:JSON.stringify({
+type:"markStockRequestInformed",
+adminToken:getAdminToken(),
+deviceId:getAdminDeviceId(),
+requestId:request.requestId || "",
+productId:request.productId || "",
+phone:request.phone || ""
+})
+})
+.then(function(){
+request.status = "Informed";
+updateRequestAnalytics();
+applyRequestFilters();
+return true;
+})
+.catch(function(){
+return false;
+});
+}
+
+function markStockRequestInformedByIndex(index){
+let request = getStockRequestByIndex(index);
+
+markStockRequestInformed(request).then(function(success){
+showToast(success ? "Marked informed" : "Could not update request");
+});
+}
+
+function notifyStockRequestByIndex(index){
+let request = getStockRequestByIndex(index);
+
+if(!request){
+showToast("Request not found");
+return;
+}
+
+let whatsappText = encodeURIComponent(
+"Hi " + (request.username || "there") + ",\n" +
+"Your product " + (request.productName || "") + " is available now.\n\n" +
+"You can order now on Dishari.\n\n" +
+"Thank you\n" +
+"Dishari"
+);
+
+let phone = String(request.phone || "").replace(/\D/g,"");
+
+if(!phone){
+showToast("Phone number missing");
+return;
+}
+
+if(phone.length === 10){
+phone = "91" + phone;
+}
+
+window.open("https://wa.me/" + phone + "?text=" + whatsappText, "_blank");
+markStockRequestInformed(request).then(function(){
+showToast("Marked informed");
+});
 }
 
 function enrichEvents(rows){
@@ -2054,6 +2153,7 @@ return normalize(row.action || row.Action || row.productId || row["Product ID"] 
 let date = getRowDate(row);
 
 return {
+requestId:normalize(row.requestId || row["Request ID"]),
 dateTime:normalize(row.dateTime || row.DateTime || row.date || row.Date),
 date:date,
 displayDate:formatDateTime(date,row.dateTime || row.DateTime || row.date || row.Date),
