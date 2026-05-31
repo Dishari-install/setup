@@ -1283,8 +1283,8 @@ const SCRIPT_API = "https://script.google.com/macros/s/AKfycbxsMa2lo42bcs36DvEyR
 const PRODUCT_API = SCRIPT_API;
 const CACHE_KEY = "dishariProductsCacheV1";
 const DRAFT_KEY = "dishariUploadDraftV1";
-const AUTO_EXIT_MS = 60000;
-const WARNING_MS = 55000;
+const AUTO_EXIT_MS = 360000;
+const WARNING_MS = 355000;
 
 const stages = [
 {key:"start", label:"Start"},
@@ -1364,10 +1364,11 @@ let returnToReviewMode = false;
 let reviewMode = "product";
 let warningTimer = null;
 let exitTimer = null;
+let previousEditStock = "";
 
 let uploadData = {
 size:"Free Size",
-category:"",
+category:"New Arrivals",
 newType:"",
 productId:"",
 productName:"",
@@ -1392,7 +1393,7 @@ banner3:""
 function freshUploadData(){
 return {
 size:"Free Size",
-category:"",
+category:"New Arrivals",
 newType:"",
 productId:"",
 productName:"",
@@ -1633,6 +1634,7 @@ let uploadButton = document.getElementById("uploadBtn");
 uploadButton.disabled = false;
 uploadButton.innerText = "Upload Product";
 editMode = false;
+previousEditStock = "";
 reviewMode = "product";
 returnToReviewMode = false;
 uploadData = freshUploadData();
@@ -1652,6 +1654,7 @@ fillForm();
 }
 
 editMode = false;
+previousEditStock = "";
 reviewMode = "product";
 returnToReviewMode = false;
 document.getElementById("modeText").innerText = "New product";
@@ -1940,13 +1943,15 @@ return uploadData.category || "Trendz";
 function cleanText(value,options){
 options = options || {};
 let original = String(value || "");
-let clean = original.replace(/[^a-zA-Z0-9 ]+/g,"").replace(/\s+/g," ");
+let normalized = original.replace(/[\r\n\t]+/g," ");
+let textWithoutPunctuation = normalized.replace(/[^a-zA-Z0-9 ]+/g,"");
+let clean = textWithoutPunctuation.replace(/\s+/g," ");
 
 if(options.trim !== false){
 clean = clean.trim();
 }
 
-if(clean !== original.trim()){
+if(textWithoutPunctuation !== normalized){
 showToast("No punctuation marks use letters and numbers only");
 }
 
@@ -2020,7 +2025,7 @@ showToast("Custom description enabled");
 }
 
 function syncDescription(key,input){
-let clean = cleanText(input.value);
+let clean = cleanText(input.value,{trim:false});
 input.value = clean;
 uploadData[key] = clean;
 saveDraft();
@@ -2446,6 +2451,10 @@ showToast("Images removed");
 }
 
 function fillForm(){
+if(!editMode && !uploadData.category){
+uploadData.category = "New Arrivals";
+}
+
 Object.keys(uploadData).forEach(function(key){
 let field = document.getElementById(key);
 if(field){
@@ -2780,6 +2789,78 @@ return false;
 });
 }
 
+function isUploadStockInStock(value){
+let stock = String(value || "").trim().toLowerCase();
+return stock === "yes" || stock === "in stock";
+}
+
+function isUploadStockOutOfStock(value){
+return !isUploadStockInStock(value);
+}
+
+function getStockRequestsUrl(){
+let separator = PRODUCT_API.indexOf("?") === -1 ? "?" : "&";
+return PRODUCT_API + separator + "type=stockRequests&adminToken=" + encodeURIComponent(getAdminToken()) + "&_=" + Date.now();
+}
+
+function checkWaitingStockRequests(productId){
+return fetch(getStockRequestsUrl())
+.then(function(res){
+return res.json();
+})
+.then(function(data){
+if(!Array.isArray(data)){
+return 0;
+}
+
+let waiting = data.filter(function(item){
+let id = String(item.productId || item["Product ID"] || "").trim();
+let status = String(item.status || item.Status || "Waiting").trim().toLowerCase();
+return id === String(productId || "").trim() && status !== "informed";
+});
+
+return waiting.length;
+})
+.catch(function(){
+return 0;
+});
+}
+
+function handleStockRequestReminder(savedData){
+let shouldCheck =
+editMode &&
+isUploadStockOutOfStock(previousEditStock) &&
+isUploadStockInStock(savedData.stock);
+
+if(!shouldCheck){
+returnToUploadStart();
+return;
+}
+
+checkWaitingStockRequests(savedData.productId).then(function(count){
+if(!count){
+returnToUploadStart();
+return;
+}
+
+hideSuccessBox();
+openConfirm(
+count + " customers are waiting",
+"This product is now in stock. Notify them from Stock Requests.",
+function(){
+sessionStorage.setItem("dishariUsersOpenTab","requests");
+sessionStorage.setItem("dishariStockRequestProductId",savedData.productId || "");
+window.location.href = "users.html";
+},
+function(){
+returnToUploadStart();
+},
+"Later",
+"Open Stock Requests"
+);
+});
+}
+
 function verifyProductDeleted(productId,attempt){
 attempt = attempt || 1;
 
@@ -2891,8 +2972,12 @@ return;
 }
 
 let btn = document.getElementById("uploadBtn");
+syncShowByImages();
 let savedData = payload();
 let successResult = getImageVisibilityResult();
+let successTitle = hasAllProductImages(uploadData)
+? (editMode ? "Product Updated Successfully" : "New Product Uploaded Successfully")
+: "Product Saved Hidden";
 
 btn.disabled = true;
 btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Saving...`;
@@ -2917,9 +3002,9 @@ return;
 
 localStorage.removeItem(CACHE_KEY);
 localStorage.removeItem(DRAFT_KEY);
-showSuccessBox(successResult.title,successResult.theme,successResult.message,successResult.icon);
+showSuccessBox(successTitle,successResult.theme,successResult.message,successResult.icon);
 setTimeout(function(){
-returnToUploadStart();
+handleStockRequestReminder(savedData);
 },3000);
 })
 .catch(function(){
@@ -3139,6 +3224,7 @@ return;
 
 uploadData = Object.assign(uploadData,productToUploadData(product));
 editMode = true;
+previousEditStock = uploadData.stock || "";
 reviewMode = "product";
 document.getElementById("modeText").innerText = "Editing product";
 fillForm();
