@@ -1875,7 +1875,7 @@ let couponHTML = appliedCoupon ? `
 ` : "";
 let couponNote = appliedCoupon
 ? `Coupon applied: ${appliedCoupon.percent}% extra discount${appliedCoupon.expiry ? " valid till " + appliedCoupon.expiry : ""}`
-: "Use your welcome offer coupon here.";
+: "Have a coupon? Apply it here";
 
 cartHTML += `
 <div class="shipping-card">
@@ -1916,7 +1916,6 @@ ${couponHTML}
 </div>
 
 <div class="coupon-box">
-<div class="coupon-title"><i class="fa-solid fa-ticket"></i>Welcome Coupon</div>
 <div class="coupon-row">
 <input type="text" id="couponInput" placeholder="Enter coupon code" value="${appliedCoupon ? appliedCoupon.code : ""}">
 <button onclick="applyCoupon()">Apply</button>
