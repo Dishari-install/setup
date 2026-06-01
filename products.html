@@ -383,6 +383,35 @@ user-select:none;
 -webkit-touch-callout:none;
 touch-action:manipulation;
 }
+
+body,
+.product-card,
+.product-card *,
+.category-btn,
+.price-filter-btn,
+.bottom-nav,
+.nav-item,
+button,
+img{
+user-select:none;
+-webkit-user-select:none;
+-webkit-touch-callout:none;
+-webkit-tap-highlight-color:transparent;
+touch-action:manipulation;
+}
+
+img{
+-webkit-user-drag:none;
+user-drag:none;
+pointer-events:auto;
+}
+
+input,
+textarea{
+user-select:text;
+-webkit-user-select:text;
+-webkit-touch-callout:default;
+}
 .cart-badge{
 position:absolute;
 top:-2px;
@@ -1633,6 +1662,24 @@ function getStockRequestId(product){
 return "SR" + Date.now() + "_" + String(product["Product ID"] || "").replace(/\W/g,"");
 }
 
+function getStockRequestKey(product){
+let productId = String(product && product["Product ID"] ? product["Product ID"] : "").trim();
+let userKey = getDishariUserPhone() || String(localStorage.getItem("user") || "").trim().toLowerCase() || "guest";
+return "dishariStockRequest_" + productId + "_" + userKey;
+}
+
+function hasStockRequest(product){
+return localStorage.getItem(getStockRequestKey(product)) === "Waiting";
+}
+
+function markStockRequest(product){
+localStorage.setItem(getStockRequestKey(product),"Waiting");
+}
+
+function clearStockRequest(product){
+localStorage.removeItem(getStockRequestKey(product));
+}
+
 function saveStockRequest(product){
 return fetch(PRODUCT_API,{
 method:"POST",
@@ -1668,6 +1715,12 @@ if(!product){
 return;
 }
 
+if(hasStockRequest(product)){
+showSizeToastMessage("Request already sent");
+return;
+}
+
+markStockRequest(product);
 saveStockRequest(product);
 showSizeToastMessage("Opening WhatsApp");
 setTimeout(function(){
@@ -1925,7 +1978,12 @@ return;
 data.forEach((product,index)=>{
 let imageUrl = normalizeImageUrl(product["Image Url"] || "");
 let inStock = isProductInStock(product);
-let cartButtonText = inStock ? "Add To Cart" : "Check Availability";
+if(inStock){
+clearStockRequest(product);
+}
+let requested = !inStock && hasStockRequest(product);
+let cartButtonText = inStock ? "Add To Cart" : (requested ? "Request Sent" : "Check Availability");
+let cartButtonDisabled = requested ? "disabled" : "";
 html += `
 <div class="product-card" onclick='openPopup(${JSON.stringify(product)})'>
 ${String(product["Category"] || "").trim().toLowerCase() === "new arrivals" ? '<div class="new-badge">NEW</div>' : ''}
@@ -1941,7 +1999,7 @@ alt="${product["Product Name"] || "Dishari product"}"
 <div class="product-name">${product["Product Name"] || ""}</div>
 <div class="product-price">₹ ${product["Price"] || ""}</div>
 <div class="product-desc">${product["Description1"] || ""}</div>
-<button class="cart-btn" onclick='event.stopPropagation();openPopup(${JSON.stringify(product)})'>${cartButtonText}</button>
+<button class="cart-btn" ${cartButtonDisabled} onclick='event.stopPropagation();openPopup(${JSON.stringify(product)})'>${cartButtonText}</button>
 </div>
 `;
 });
@@ -2740,8 +2798,12 @@ document.getElementById("popupStock").innerHTML = `<div class="popup-stock out-s
 
 let popupCartButton = document.querySelector("#popup .add-btn");
 if(popupCartButton){
-popupCartButton.disabled = false;
-popupCartButton.innerText = isInStock ? "Add To Cart" : "Check Availability";
+if(isInStock){
+clearStockRequest(product);
+}
+let requested = !isInStock && hasStockRequest(product);
+popupCartButton.disabled = requested;
+popupCartButton.innerText = isInStock ? "Add To Cart" : (requested ? "Request Sent" : "Check Availability");
 }
 
 selectedPopupSize = "";
@@ -2837,6 +2899,30 @@ if(dots[currentSlide]){
 dots[currentSlide].classList.add("active");
 }
 }
+
+function isEditableTarget(target){
+return target && target.closest && target.closest("input, textarea");
+}
+
+document.addEventListener("contextmenu", function(e){
+if(!isEditableTarget(e.target)){
+e.preventDefault();
+}
+});
+
+document.addEventListener("selectstart", function(e){
+if(!isEditableTarget(e.target)){
+e.preventDefault();
+}
+});
+
+document.addEventListener("dragstart", function(e){
+e.preventDefault();
+});
+
+document.querySelectorAll("img").forEach(function(img){
+img.setAttribute("draggable","false");
+});
 
 history.pushState(null, "", location.href);
 window.addEventListener("popstate", function () {
