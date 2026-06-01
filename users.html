@@ -1228,8 +1228,8 @@ Auto exit 50s
 
 <script>
 const SCRIPT_API = "https://script.google.com/macros/s/AKfycbxsMa2lo42bcs36DvEyR-_EFM24tYnB8OuBvlRU94Y7jNcz0cxbcvbX7ripAeFwsVApug/exec";
-const AUTO_EXIT_MS = 50000;
-const WARNING_MS = 45000;
+const AUTO_EXIT_MS = 180000;
+const WARNING_MS = 175000;
 
 let allUsers = [];
 let filteredUsers = [];
@@ -1467,11 +1467,6 @@ if(!text){
 return null;
 }
 
-let direct = new Date(text);
-if(!isNaN(direct.getTime())){
-return direct;
-}
-
 let match = text.match(/(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})(?:,\s*|\s+)?(\d{1,2})?:?(\d{2})?\s*(am|pm)?/i);
 
 if(match){
@@ -1491,6 +1486,32 @@ hour = 0;
 }
 
 return new Date(year, month, day, hour, minute);
+}
+
+let isoLike = text.match(/(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})(?:[T\s,]+(\d{1,2})?:?(\d{2})?\s*(am|pm)?)?/i);
+
+if(isoLike){
+let year = Number(isoLike[1]);
+let month = Number(isoLike[2]) - 1;
+let day = Number(isoLike[3]);
+let hour = Number(isoLike[4] || 0);
+let minute = Number(isoLike[5] || 0);
+let period = (isoLike[6] || "").toLowerCase();
+
+if(period === "pm" && hour < 12){
+hour += 12;
+}
+
+if(period === "am" && hour === 12){
+hour = 0;
+}
+
+return new Date(year, month, day, hour, minute);
+}
+
+let direct = new Date(text);
+if(!isNaN(direct.getTime())){
+return direct;
 }
 
 return null;
@@ -2283,7 +2304,7 @@ modal.innerHTML = `
 <div style="margin-top:8px;font-size:14px;line-height:21px;font-weight:800;color:#607086;">Offer valid for 48 hours after sending.</div>
 <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-top:18px;">
 ${[5,10,15,20].map(function(percent){
-return `<button onclick="sendOfferWelcome(${index},${percent})" style="height:48px;border:none;border-radius:15px;background:${percent === 10 ? "linear-gradient(135deg,#1877F2,#0f6be8)" : "#f3f8ff"};color:${percent === 10 ? "white" : "#1877F2"};font-size:15px;font-weight:900;">${percent}%</button>`;
+return `<button onclick="this.style.background='linear-gradient(135deg,#1877F2,#0f6be8)';this.style.color='white';sendOfferWelcome(${index},${percent})" style="height:48px;border:1px solid #d6e7ff;border-radius:15px;background:#f3f8ff;color:#1877F2;font-size:15px;font-weight:900;">${percent}%</button>`;
 }).join("")}
 </div>
 <button onclick="document.getElementById('offerWelcomeModal').remove()" style="margin-top:14px;width:100%;height:48px;border:1px solid #d6e7ff;border-radius:15px;background:white;color:#1877F2;font-size:15px;font-weight:900;">Back</button>
