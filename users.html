@@ -906,7 +906,7 @@ height:42px;
 </div>
 <div class="status-pill">
 <i class="fa-solid fa-shield-halved"></i>
-Auto exit 50s
+Auto exit 180s
 </div>
 </div>
 
@@ -1509,20 +1509,7 @@ return monthFirst;
 }
 
 if(dayFirst && monthFirst){
-let currentMonth = new Date().getMonth() + 1;
-
-if(firstNumber === currentMonth && secondNumber !== currentMonth){
-return monthFirst;
-}
-
-if(secondNumber === currentMonth && firstNumber !== currentMonth){
 return dayFirst;
-}
-
-let today = startOfDay(new Date()).getTime();
-let dayDistance = Math.abs(startOfDay(dayFirst).getTime() - today);
-let monthDistance = Math.abs(startOfDay(monthFirst).getTime() - today);
-return monthDistance < dayDistance ? monthFirst : dayFirst;
 }
 
 return null;
