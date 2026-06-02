@@ -1486,6 +1486,38 @@ return null;
 return parsed;
 }
 
+function chooseReadableSheetDate(first,second,year,hour,minute){
+let firstNumber = Number(first);
+let secondNumber = Number(second);
+let dayFirst = makeLocalDate(year,secondNumber - 1,firstNumber,hour,minute);
+let monthFirst = makeLocalDate(year,firstNumber - 1,secondNumber,hour,minute);
+
+if(firstNumber > 12){
+return dayFirst;
+}
+
+if(secondNumber > 12){
+return monthFirst;
+}
+
+if(dayFirst && !monthFirst){
+return dayFirst;
+}
+
+if(monthFirst && !dayFirst){
+return monthFirst;
+}
+
+if(dayFirst && monthFirst){
+let today = startOfDay(new Date()).getTime();
+let dayDistance = Math.abs(startOfDay(dayFirst).getTime() - today);
+let monthDistance = Math.abs(startOfDay(monthFirst).getTime() - today);
+return monthDistance < dayDistance ? monthFirst : dayFirst;
+}
+
+return null;
+}
+
 function parseDateTime(value){
 let text = normalize(value);
 
@@ -1493,11 +1525,26 @@ if(!text){
 return null;
 }
 
+if(/^\d{4}[\/\-.]\d{1,2}[\/\-.]\d{1,2}T/i.test(text)){
+let directIso = new Date(text);
+if(!isNaN(directIso.getTime())){
+return new Date(
+directIso.getFullYear(),
+directIso.getMonth(),
+directIso.getDate(),
+directIso.getHours(),
+directIso.getMinutes(),
+0,
+0
+);
+}
+}
+
 let match = text.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})(?:,\s*|\s+)?(\d{1,2})?(?::(\d{2}))?\s*(am|pm)?/i);
 
 if(match){
-let day = Number(match[1]);
-let month = Number(match[2]) - 1;
+let first = Number(match[1]);
+let second = Number(match[2]);
 let year = Number(match[3]);
 let hour = Number(match[4] || 0);
 let minute = Number(match[5] || 0);
@@ -1511,7 +1558,7 @@ if(period === "am" && hour === 12){
 hour = 0;
 }
 
-let parsed = makeLocalDate(year, month, day, hour, minute);
+let parsed = chooseReadableSheetDate(first, second, year, hour, minute);
 if(parsed){
 return parsed;
 }
