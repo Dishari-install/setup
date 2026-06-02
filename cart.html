@@ -1767,11 +1767,15 @@ showProcessing();
 items.forEach(function(item){
 trackUserEvent("orderPlaced",item);
 });
-sendOrderToSheet(order).catch(function(error){});
+
+try{
+await sendOrderToSheet(order);
+}
+catch(error){}
 
 setTimeout(function(){
 openWhatsApp(order);
-},2000);
+},700);
 }
 
 function goToCheckout(){
