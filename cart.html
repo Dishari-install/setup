@@ -1674,8 +1674,54 @@ lines.push("Thank you for shopping with Dishari");
 return lines.join("\n");
 }
 
+function postOrderWithForm(payload){
+return new Promise(function(resolve){
+let frameName = "dishariOrderFrame_" + Date.now();
+let iframe = document.createElement("iframe");
+iframe.name = frameName;
+iframe.style.display = "none";
+
+let form = document.createElement("form");
+form.method = "POST";
+form.action = ORDER_API;
+form.target = frameName;
+form.style.display = "none";
+
+let input = document.createElement("input");
+input.type = "hidden";
+input.name = "payload";
+input.value = JSON.stringify(payload);
+
+form.appendChild(input);
+document.body.appendChild(iframe);
+document.body.appendChild(form);
+
+let finished = false;
+
+function finish(){
+if(finished){
+return;
+}
+
+finished = true;
+
+setTimeout(function(){
+form.remove();
+iframe.remove();
+},500);
+
+resolve(true);
+}
+
+iframe.onload = finish;
+form.submit();
+setTimeout(finish,2500);
+});
+}
+
 async function sendOrderToSheet(order){
 let payload = {
+type:"orders",
 orderId:order.orderId,
 dateTime:order.dateTime,
 customerName:order.customer.fullName,
@@ -1702,14 +1748,7 @@ couponUsername:localStorage.getItem("user") || "",
 couponPhone:getDishariUserPhone()
 };
 
-await fetch(ORDER_API, {
-method:"POST",
-mode:"no-cors",
-headers:{
-"Content-Type":"text/plain;charset=utf-8"
-},
-body:JSON.stringify(payload)
-});
+await postOrderWithForm(payload);
 }
 
 function removeSelectedItemsFromCart(){
