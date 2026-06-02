@@ -1509,7 +1509,10 @@ return monthFirst;
 }
 
 if(dayFirst && monthFirst){
-return dayFirst;
+let today = startOfDay(new Date()).getTime();
+let dayDistance = Math.abs(startOfDay(dayFirst).getTime() - today);
+let monthDistance = Math.abs(startOfDay(monthFirst).getTime() - today);
+return dayDistance <= monthDistance ? dayFirst : monthFirst;
 }
 
 return null;
