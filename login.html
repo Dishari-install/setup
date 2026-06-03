@@ -1071,12 +1071,36 @@ function normalize(value){
 return String(value || "").trim();
 }
 
+function normalizeKey(value){
+return String(value || "").toLowerCase().replace(/\s+/g,"");
+}
+
+function getUserField(user,names){
+let keys = Object.keys(user || {});
+
+for(let i = 0; i < names.length; i++){
+let wanted = normalizeKey(names[i]);
+
+for(let j = 0; j < keys.length; j++){
+if(normalizeKey(keys[j]) === wanted){
+return user[keys[j]];
+}
+}
+}
+
+return "";
+}
+
+function normalizeName(value){
+return normalize(value).replace(/\s+/g," ").toLowerCase();
+}
+
 function sameName(user,name){
-return normalize(user.username).toLowerCase() === normalize(name).toLowerCase();
+return normalizeName(getUserField(user,["username","user name","name"])) === normalizeName(name);
 }
 
 function samePhone(user,phone){
-return normalize(user.phone).replace(/\D/g,"") === normalize(phone).replace(/\D/g,"");
+return normalize(getUserField(user,["phone","phone number","mobile"])).replace(/\D/g,"") === normalize(phone).replace(/\D/g,"");
 }
 
 function makeDateTime(){
@@ -1092,7 +1116,7 @@ hour12:true
 }
 
 function fetchUsers(){
-return fetch(USER_API).then(function(res){
+return fetch(USER_API + "&_=" + Date.now(), {cache:"no-store"}).then(function(res){
 return res.json();
 });
 }
