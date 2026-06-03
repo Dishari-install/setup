@@ -908,10 +908,9 @@ return "";
 
 function parseDate(value){
 let text = normalize(value);
-let date = new Date(text);
 
-if(!isNaN(date.getTime())){
-return date;
+if(!text){
+return null;
 }
 
 let match = text.match(/(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})(?:,\s*|\s+)?(\d{1,2})?:?(\d{2})?\s*(am|pm)?/i);
@@ -933,6 +932,12 @@ hour = 0;
 }
 
 return new Date(year, month, day, hour, minute);
+}
+
+let date = new Date(text);
+
+if(!isNaN(date.getTime())){
+return date;
 }
 
 return null;
